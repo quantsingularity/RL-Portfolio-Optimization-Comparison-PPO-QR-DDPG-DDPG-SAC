@@ -59,7 +59,7 @@ rl_portfolio_project/
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/abrar2030/RL-Portfolio-Optimization-Comparison-PPO-QR-DDPG-DDPG-SAC.git
+git clone https://github.com/quantsingularity/RL-Portfolio-Optimization-Comparison-PPO-QR-DDPG-DDPG-SAC
 cd RL-Portfolio-Optimization-Comparison-PPO-QR-DDPG-DDPG-SAC
 ```
 
