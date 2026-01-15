@@ -8,41 +8,41 @@ data:
   train_end: "2022-12-31"
   test_start: "2023-01-01"
   test_end: "2024-12-31"
-  
+
   # Asset Universe (25 assets across 4 asset classes)
   assets:
     equities:
-      - AAPL  # Apple
-      - MSFT  # Microsoft
+      - AAPL # Apple
+      - MSFT # Microsoft
       - GOOGL # Alphabet
-      - AMZN  # Amazon
-      - TSLA  # Tesla
-      - JPM   # JP Morgan
-      - V     # Visa
-      - JNJ   # Johnson & Johnson
-      - WMT   # Walmart
-      - PG    # Procter & Gamble
-    
+      - AMZN # Amazon
+      - TSLA # Tesla
+      - JPM # JP Morgan
+      - V # Visa
+      - JNJ # Johnson & Johnson
+      - WMT # Walmart
+      - PG # Procter & Gamble
+
     cryptocurrencies:
-      - BTC-USD  # Bitcoin
-      - ETH-USD  # Ethereum
-      - BNB-USD  # Binance Coin
-      - ADA-USD  # Cardano
-      - XRP-USD  # Ripple
-    
+      - BTC-USD # Bitcoin
+      - ETH-USD # Ethereum
+      - BNB-USD # Binance Coin
+      - ADA-USD # Cardano
+      - XRP-USD # Ripple
+
     commodities:
-      - GC=F   # Gold Futures
-      - SI=F   # Silver Futures
-      - CL=F   # Crude Oil Futures
-      - NG=F   # Natural Gas Futures
-      - HG=F   # Copper Futures
-    
+      - GC=F # Gold Futures
+      - SI=F # Silver Futures
+      - CL=F # Crude Oil Futures
+      - NG=F # Natural Gas Futures
+      - HG=F # Copper Futures
+
     fixed_income:
-      - TLT    # 20+ Year Treasury Bond ETF
-      - IEF    # 7-10 Year Treasury Bond ETF
-      - SHY    # 1-3 Year Treasury Bond ETF
-      - LQD    # Investment Grade Corporate Bond ETF
-      - HYG    # High Yield Corporate Bond ETF
+      - TLT # 20+ Year Treasury Bond ETF
+      - IEF # 7-10 Year Treasury Bond ETF
+      - SHY # 1-3 Year Treasury Bond ETF
+      - LQD # Investment Grade Corporate Bond ETF
+      - HYG # High Yield Corporate Bond ETF
 
   # Technical Indicators
   technical_indicators:
@@ -52,18 +52,18 @@ data:
     - dx
     - boll_ub
     - boll_lb
-  
+
   # Macroeconomic Factors
   macro_factors:
-    - ^VIX  # VIX Volatility Index
+    - ^VIX # VIX Volatility Index
 
 # Environment Configuration
 environment:
   initial_amount: 1000000
-  transaction_cost_pct: 0.001  # 0.1%
+  transaction_cost_pct: 0.001 # 0.1%
   slippage_coefficient: 0.05
   reward_scaling: 1.0
-  hmax: 100  # Maximum shares per trade
+  hmax: 100 # Maximum shares per trade
   print_verbosity: 5
 
 # Model Hyperparameters
@@ -81,7 +81,7 @@ models:
     policy_kwargs:
       net_arch: [128, 64]
       activation_fn: "relu"
-  
+
   qr_ddpg:
     learning_rate_actor: 0.0001
     learning_rate_critic: 0.0003
@@ -92,7 +92,7 @@ models:
     n_quantiles: 50
     policy_kwargs:
       net_arch: [128, 64]
-  
+
   ddpg:
     learning_rate_actor: 0.0001
     learning_rate_critic: 0.0003
@@ -102,7 +102,7 @@ models:
     gamma: 0.99
     policy_kwargs:
       net_arch: [128, 64]
-  
+
   sac:
     learning_rate: 0.0003
     batch_size: 256
@@ -115,9 +115,9 @@ models:
 
 # Risk Management
 risk:
-  max_drawdown_penalty: 0.5  # Lambda coefficient
-  risk_free_rate: 0.045  # 4.5% annual
-  cvar_alpha: 0.05  # 5% for CVaR calculation
+  max_drawdown_penalty: 0.5 # Lambda coefficient
+  risk_free_rate: 0.045 # 4.5% annual
+  cvar_alpha: 0.05 # 5% for CVaR calculation
 
 # Training Configuration
 training:
