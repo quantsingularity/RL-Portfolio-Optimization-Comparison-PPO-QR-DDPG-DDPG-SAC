@@ -96,15 +96,15 @@ python code/evaluate.py
 
 The repository is organized into logical directories for core code, configuration, production services, and analysis notebooks.
 
-| Path              | Description                | Key Files                                                                                             |
-| :---------------- | :------------------------- | :---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **`/`**           | **Root Directory**         | `Dockerfile`, `docker-compose.yml`, `Makefile`, `requirements.txt`, `LICENSE`                         |
-| **`code/`**       | **Core Logic**             | Contains all Python modules for DRL agents, environment, data processing, and analysis.               | `agents.py`, `environment.py`, `data_processor.py`, `train.py`, `evaluate.py` |
-| **`config/`**     | **Configuration**          | Centralized YAML file for all project settings, hyperparameters, and constraints.                     | `config.yaml`                                                                 |
-| **`production/`** | **Deployment Services**    | Code for the production API and background tasks.                                                     | `api.py` (FastAPI), `monitoring.py`                                           |
-| **`notebooks/`**  | **Analysis & Exploration** | Jupyter notebooks for interactive analysis of transaction costs, reward ablation, and market regimes. | `transaction_cost_analysis.ipynb`                                             |
-| **`docs/`**       | **Documentation**          | Supplementary documentation, including the detailed quick start guide.                                | `QUICKSTART.md`                                                               |
-| **`tests/`**      | **Unit Tests**             | Placeholder for unit and integration tests.                                                           | `__init__.py`                                                                 |
+| Path              | Description                | Key Files                                                                     |
+| :---------------- | :------------------------- | :---------------------------------------------------------------------------- |
+| **`/`**           | **Root Directory**         | `Dockerfile`, `docker-compose.yml`, `Makefile`, `requirements.txt`, `LICENSE` |
+| **`code/`**       | **Core Logic**             | `agents.py`, `environment.py`, `data_processor.py`, `train.py`, `evaluate.py` |
+| **`config/`**     | **Configuration**          | `config.yaml`                                                                 |
+| **`production/`** | **Deployment Services**    | `api.py` (FastAPI), `monitoring.py`                                           |
+| **`notebooks/`**  | **Analysis & Exploration** | `transaction_cost_analysis.ipynb`                                             |
+| **`docs/`**       | **Documentation**          | `QUICKSTART.md`                                                               |
+| **`tests/`**      | **Unit Tests**             | `__init__.py`                                                                 |
 
 ---
 
