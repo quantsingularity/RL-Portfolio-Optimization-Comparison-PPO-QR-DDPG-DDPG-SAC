@@ -42,6 +42,23 @@ A comparative study of four Deep Reinforcement Learning algorithms PPO, QR-DDPG,
 
 ## Quick Start
 
+### Run script (simplest)
+
+```bash
+bash scripts/run.sh setup     # install dependencies
+bash scripts/run.sh test      # run the unit test suite (17 tests)
+bash scripts/run.sh demo      # offline smoke run on synthetic data (~2 min, no network)
+bash scripts/run.sh data      # data pipeline only
+bash scripts/run.sh train     # train all agents (PPO, DDPG, SAC, QR-DDPG)
+bash scripts/run.sh evaluate  # evaluate agents vs classical benchmarks
+bash scripts/run.sh api       # launch the FastAPI production service
+```
+
+Offline environments are fully supported: set `data.use_synthetic_data: true`
+in `code/config/config.yaml` (or rely on the automatic fallback when Yahoo
+Finance is unreachable) to run the entire pipeline on reproducible synthetic
+data.
+
 ### Docker (Recommended)
 
 ```bash
@@ -72,17 +89,17 @@ python code/evaluation/evaluate.py
 
 ## Project Structure
 
-| Path                 | Description           | Key Files                                                |
-| :------------------- | :-------------------- | :------------------------------------------------------- |
-| `code/`              | Core ML logic         | `agents.py`, `environment.py`, `train.py`, `evaluate.py` |
-| `code/config/`       | Configuration         | `config.yaml`                                            |
-| `code/production/`   | Production API        | `api.py`                                                 |
-| `code/tests/`        | Unit tests            | `__init__.py`                                            |
-| `infrastructure/`    | Infra configs         | `.env.example`                                           |
-| `Dockerfile`         | Container build       | Multi-stage, CUDA-enabled image                          |
-| `docker-compose.yml` | Service orchestration | All services (API, DB, Redis, Jupyter, Grafana)          |
-| `scripts/`           | Dev & CI helpers      | `Makefile`, `lint.sh`                                    |
-| `docs/`              | Documentation         | `QUICKSTART.md`                                          |
+| Path                 | Description           | Key Files                                                         |
+| :------------------- | :-------------------- | :---------------------------------------------------------------- |
+| `code/`              | Core ML logic         | `agents.py`, `environment.py`, `train.py`, `evaluate.py`          |
+| `code/config/`       | Configuration         | `config.yaml`                                                     |
+| `code/production/`   | Production API        | `api.py`                                                          |
+| `code/tests/`        | Unit tests            | `test_environment.py`, `test_agents.py`, `test_data_processor.py` |
+| `infrastructure/`    | Infra configs         | `.env.example`                                                    |
+| `Dockerfile`         | Container build       | Multi-stage, CUDA-enabled image                                   |
+| `docker-compose.yml` | Service orchestration | All services (API, DB, Redis, Jupyter, Grafana)                   |
+| `scripts/`           | Dev & CI helpers      | `run.sh`, `Makefile`, `lint.sh`                                   |
+| `docs/`              | Documentation         | `QUICKSTART.md`                                                   |
 
 ---
 

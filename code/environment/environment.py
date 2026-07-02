@@ -216,15 +216,12 @@ class PortfolioEnv(gym.Env):
         exp_a = np.exp(actions - actions.max())  # numerically stable
         new_weights = exp_a / exp_a.sum()
 
-        # Apply per-asset cap (hmax)
+        # Apply per-asset cap (hmax) with an iterative capped-simplex
+        # projection. A single clip-then-renormalise pass can push weights
+        # back above the cap; iterating redistributes the excess only among
+        # uncapped assets until all constraints hold.
         if self.hmax < 1.0:
-            new_weights = np.clip(new_weights, 0.0, self.hmax)
-            total = new_weights.sum()
-            new_weights = (
-                new_weights / total
-                if total > 0
-                else np.full(self.n_stocks, 1.0 / self.n_stocks)
-            )
+            new_weights = self._project_capped_simplex(new_weights, self.hmax)
 
         # Turbulence guard: liquidate to equal-weight if threshold exceeded
         if self.turbulence_threshold is not None and self.current_step < self.n_dates:
@@ -246,7 +243,7 @@ class PortfolioEnv(gym.Env):
         self.portfolio_weights = new_weights.astype(np.float32)
 
         # ------ Portfolio return for this step -------------------------------- #
-        # Use pre-built price matrix — O(n_stocks) vector op, not DataFrame scan
+        # Use pre-built price matrix: O(n_stocks) vector op, not DataFrame scan
         prev_prices = self._price_matrix[self.current_step]
         next_step = min(self.current_step + 1, self.n_dates - 1)
         next_prices = self._price_matrix[next_step]
@@ -264,7 +261,7 @@ class PortfolioEnv(gym.Env):
             self.max_portfolio_value = self.portfolio_value
 
         # ------ Reward -------------------------------------------------------- #
-        # Computed on every step including terminal — fixes silent zero reward
+        # Computed on every step including terminal: fixes silent zero reward
         log_return = np.log(self.portfolio_value / old_value) if old_value > 0 else 0.0
         current_drawdown = (
             (self.max_portfolio_value - self.portfolio_value) / self.max_portfolio_value
@@ -304,6 +301,44 @@ class PortfolioEnv(gym.Env):
     # ------------------------------------------------------------------ #
     # Internal helpers                                                      #
     # ------------------------------------------------------------------ #
+
+    def _project_capped_simplex(self, weights: np.ndarray, cap: float) -> np.ndarray:
+        """
+        Project weights onto the capped simplex:
+            w_i in [0, cap],  sum(w) = 1.
+
+        Iteratively caps violating assets and redistributes the remaining
+        mass proportionally among uncapped assets. If the cap is infeasible
+        (cap * n_stocks < 1), returns the closest feasible allocation
+        (all assets at cap, renormalised).
+        """
+        n = len(weights)
+        if cap * n < 1.0:
+            # Infeasible cap: best effort: uniform at renormalised cap.
+            return np.full(n, 1.0 / n, dtype=np.float32)
+
+        w = np.clip(weights.astype(np.float64), 0.0, None)
+        total = w.sum()
+        w = w / total if total > 0 else np.full(n, 1.0 / n)
+
+        capped = np.zeros(n, dtype=bool)
+        for _ in range(n):
+            over = (w > cap) & (~capped)
+            if not over.any():
+                break
+            w[over] = cap
+            capped |= over
+            free = ~capped
+            residual = 1.0 - w[capped].sum()
+            free_sum = w[free].sum()
+            if free_sum <= 0 or not free.any():
+                # Distribute residual equally among free assets (or stop).
+                if free.any():
+                    w[free] = residual / free.sum()
+                break
+            w[free] = w[free] * (residual / free_sum)
+
+        return w.astype(np.float32)
 
     def _get_state(self) -> np.ndarray:
         step = min(self.current_step, self.n_dates - 1)

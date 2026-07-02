@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Configuration
 # ---------------------------------------------------------------------------
 
-# code/ directory — config lives at code/config/config.yaml
+# code/ directory: config lives at code/config/config.yaml
 _ROOT = Path(__file__).resolve().parent.parent
 
 # Ensure code/ is on sys.path so sibling modules (agents, etc.) are importable
@@ -210,22 +210,110 @@ def _calculate_risk_metrics(weights: np.ndarray, returns_data: pd.DataFrame) -> 
     }
 
 
+# Cache for the lazily-built inference dataset / environment so we do not
+# re-run the data pipeline on every request.
+_inference_cache: Dict[str, Any] = {}
+
+
+def _get_inference_data() -> "pd.DataFrame":
+    """
+    Build (and cache) the most recent processed market data used for
+    inference. Falls back to synthetic data when live data is unavailable
+    (controlled by ``data.use_synthetic_data`` and automatic fetch fallback).
+    """
+    if "data" in _inference_cache:
+        return _inference_cache["data"]
+
+    sys.path.insert(0, str(_ROOT))
+    from data import DataProcessor
+
+    processor = DataProcessor(config)
+    _, test_data = processor.process_all()
+    _inference_cache["data"] = test_data
+    return test_data
+
+
 def _build_market_state(all_tickers: List[str]) -> np.ndarray:
     """
     Construct the current market state vector for model inference.
 
-    Production TODO: replace this stub with a live call to DataProcessor
-    to fetch recent market data and call PortfolioEnv._get_state().
-    For now, returns a zero vector of the correct dimension so the API
-    remains functional without live data.
+    Builds a live ``PortfolioEnv`` from the most recent processed market data
+    and returns its terminal state (the latest available market snapshot). If
+    the data pipeline is unavailable for any reason, falls back to a zero
+    vector of the correct dimension so the API stays responsive.
     """
     n_assets = len(all_tickers)
     n_features = 6  # Close, MACD, RSI, CCI, DX, BollUB
     state_dim = 1 + n_assets + n_assets * n_features
-    logger.warning(
-        "Using zero state vector (stub). Wire up DataProcessor for live inference."
-    )
-    return np.zeros(state_dim, dtype=np.float32)
+
+    try:
+        from environment import PortfolioEnv
+
+        data = _get_inference_data()
+        # Restrict to the investable universe, in the same order as all_tickers.
+        data = data[data["tic"].isin(all_tickers)]
+        if data.empty:
+            raise RuntimeError("no processed rows for the configured tickers")
+
+        env = PortfolioEnv(
+            df=data,
+            initial_amount=config["environment"]["initial_amount"],
+            transaction_cost_pct=config["environment"]["transaction_cost_pct"],
+            max_drawdown_penalty=config["risk"]["max_drawdown_penalty"],
+            hmax=config["environment"].get("hmax", 0.30),
+            print_verbosity=0,
+        )
+        # Advance to the final available snapshot to get the freshest state.
+        env.reset()
+        env.current_step = env.n_dates - 1
+        state = env._get_state()
+        if state.shape[0] != state_dim:
+            # Universe mismatch (e.g. some tickers dropped); pad / truncate.
+            fixed = np.zeros(state_dim, dtype=np.float32)
+            fixed[: min(state_dim, state.shape[0])] = state[
+                : min(state_dim, state.shape[0])
+            ]
+            return fixed
+        return state.astype(np.float32)
+    except Exception as exc:
+        logger.warning(
+            "Could not build live market state (%s); using zero vector.", exc
+        )
+        return np.zeros(state_dim, dtype=np.float32)
+
+
+def _estimate_recommendation_risk(
+    weights: np.ndarray, all_tickers: List[str]
+) -> Dict[str, float]:
+    """
+    Estimate expected return / volatility / Sharpe and a drawdown estimate for
+    a candidate weight vector from recent realised returns. Returns an empty
+    dict if the underlying return data cannot be assembled.
+    """
+    try:
+        data = _get_inference_data()
+        pivot = (
+            data[data["tic"].isin(all_tickers)]
+            .pivot(index="Date", columns="tic", values="Close")
+            .reindex(columns=all_tickers)
+            .ffill()
+            .bfill()
+        )
+        returns = pivot.pct_change().dropna()
+        if returns.empty:
+            return {}
+        metrics = _calculate_risk_metrics(weights, returns)
+
+        # Historical max drawdown of the weighted portfolio return series.
+        port_returns = (returns.values * weights).sum(axis=1)
+        equity = np.cumprod(1.0 + port_returns)
+        peak = np.maximum.accumulate(equity)
+        drawdown = (peak - equity) / peak
+        metrics["max_drawdown_estimate"] = -float(drawdown.max()) * 100
+        return metrics
+    except Exception as exc:
+        logger.warning("Risk-metric estimation failed: %s", exc)
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +380,16 @@ async def get_portfolio_recommendation(request: PortfolioRequest):
     )
 
     weight_dict = {t: round(float(w), 6) for t, w in zip(all_tickers, weights)}
-    risk_metrics: Dict = {}  # Populated once live data pipeline is wired up
+
+    # Estimate forward-looking risk metrics from recent realised returns.
+    risk_metrics = _estimate_recommendation_risk(weights, all_tickers)
+
+    # Confidence proxy: how concentrated the allocation is relative to an
+    # equal-weight portfolio (a sharper, more decisive allocation ⇒ higher
+    # confidence). Bounded to [0.5, 0.99].
+    equal_weight = 1.0 / len(all_tickers)
+    concentration = float(np.abs(weights - equal_weight).sum())
+    confidence_score = float(np.clip(0.5 + 0.5 * concentration, 0.5, 0.99))
 
     return PortfolioRecommendation(
         client_id=request.client_id,
@@ -301,8 +398,8 @@ async def get_portfolio_recommendation(request: PortfolioRequest):
         expected_return=risk_metrics.get("expected_return", 0.0),
         expected_volatility=risk_metrics.get("expected_volatility", 0.0),
         sharpe_ratio=risk_metrics.get("sharpe_ratio", 0.0),
-        max_drawdown_estimate=-15.0,  # stub — replace with live VaR estimate
-        confidence_score=0.85,  # stub — replace with ensemble disagreement
+        max_drawdown_estimate=risk_metrics.get("max_drawdown_estimate", 0.0),
+        confidence_score=confidence_score,
     )
 
 
@@ -378,7 +475,7 @@ async def list_available_models():
 
 
 async def _execute_rebalance(client_id: str) -> None:
-    """Execute portfolio rebalancing (stub — wire up order management system)."""
+    """Execute portfolio rebalancing (stub: wire up order management system)."""
     logger.info("Executing rebalance for %s", client_id)
 
 

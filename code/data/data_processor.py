@@ -16,7 +16,11 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
+
+try:
+    import yfinance as yf
+except Exception:  # pragma: no cover - yfinance is optional for offline mode
+    yf = None
 
 warnings.filterwarnings("ignore")
 
@@ -64,15 +68,33 @@ class DataProcessor:
         start_date = self.config["data"]["start_date"]
         end_date = self.config["data"]["end_date"]
 
-        # ---- Batch download for investable assets -------------------------- #
-        raw = yf.download(
-            all_assets,
-            start=start_date,
-            end=end_date,
-            group_by="ticker",
-            auto_adjust=True,
-            progress=False,
-        )
+        # ---- Offline / synthetic mode ------------------------------------- #
+        # If explicitly requested, or if the live download fails (e.g. no
+        # network access), fall back to reproducible synthetic OHLCV data so
+        # the full pipeline remains runnable end-to-end without Yahoo Finance.
+        if self.config["data"].get("use_synthetic_data", False):
+            print("  use_synthetic_data=True: generating synthetic OHLCV data.")
+            return self._generate_synthetic_data(all_assets, macro_factors)
+
+        try:
+            if yf is None:
+                raise RuntimeError("yfinance is not installed")
+            raw = yf.download(
+                all_assets,
+                start=start_date,
+                end=end_date,
+                group_by="ticker",
+                auto_adjust=True,
+                progress=False,
+            )
+            if raw is None or len(raw) == 0:
+                raise RuntimeError("empty response from Yahoo Finance")
+        except Exception as exc:  # pragma: no cover - network dependent
+            print(
+                f"  [WARN] Live data download failed ({exc}). "
+                "Falling back to synthetic data."
+            )
+            return self._generate_synthetic_data(all_assets, macro_factors)
 
         data_list: List[pd.DataFrame] = []
         failed: List[str] = []
@@ -150,6 +172,79 @@ class DataProcessor:
         print(
             f"Data fetched: {len(self.data):,} rows, "
             f"{self.data['tic'].nunique()} tickers"
+        )
+        return self.data
+
+    # ------------------------------------------------------------------ #
+    # Offline synthetic data generator                                     #
+    # ------------------------------------------------------------------ #
+
+    def _generate_synthetic_data(
+        self,
+        investable: List[str],
+        macro_factors: List[str],
+    ) -> pd.DataFrame:
+        """
+        Generate reproducible synthetic OHLCV data for every configured
+        ticker using a geometric-Brownian-motion price process.
+
+        This keeps the whole training / evaluation / serving pipeline runnable
+        end-to-end in environments without access to Yahoo Finance. The data
+        is clearly synthetic and seeded for reproducibility.
+        """
+        start_date = pd.to_datetime(self.config["data"]["start_date"])
+        end_date = pd.to_datetime(self.config["data"]["end_date"])
+        # Business-day calendar keeps the series realistic (no weekends).
+        dates = pd.bdate_range(start=start_date, end=end_date)
+        n = len(dates)
+
+        rng = np.random.default_rng(self.config["data"].get("synthetic_seed", 42))
+        all_tickers = list(investable) + list(macro_factors)
+        frames: List[pd.DataFrame] = []
+
+        for idx, ticker in enumerate(all_tickers):
+            # Per-ticker drift / volatility so assets are not identical.
+            mu = rng.uniform(0.00002, 0.0006)
+            sigma = rng.uniform(0.008, 0.03)
+            start_price = float(rng.uniform(20.0, 500.0))
+
+            shocks = rng.normal(mu, sigma, size=n)
+            log_path = np.cumsum(shocks)
+            close = start_price * np.exp(log_path)
+
+            # Build OHLC around the close with a small intraday range.
+            intraday = np.abs(rng.normal(0.0, sigma, size=n)) * close
+            open_ = close * (1.0 + rng.normal(0.0, sigma / 2, size=n))
+            high = np.maximum(open_, close) + intraday
+            low = np.minimum(open_, close) - intraday
+            low = np.clip(low, 1e-3, None)
+            volume = rng.integers(1_000_000, 20_000_000, size=n).astype(float)
+
+            frames.append(
+                pd.DataFrame(
+                    {
+                        "Date": dates,
+                        "Open": open_.astype(np.float32),
+                        "High": high.astype(np.float32),
+                        "Low": low.astype(np.float32),
+                        "Close": close.astype(np.float32),
+                        "Volume": volume,
+                        "tic": ticker,
+                    }
+                )
+            )
+
+        self.valid_tickers = list(all_tickers)
+        self.data = (
+            pd.concat(frames, ignore_index=True)
+            .sort_values(["Date", "tic"])
+            .reset_index(drop=True)
+        )
+        self.data["Date"] = pd.to_datetime(self.data["Date"])
+
+        print(
+            f"Synthetic data generated: {len(self.data):,} rows, "
+            f"{self.data['tic'].nunique()} tickers over {n} trading days"
         )
         return self.data
 
@@ -244,7 +339,7 @@ class DataProcessor:
         print("Calculating turbulence index (expanding window, no look-ahead)...")
 
         df = self.processed_data.copy()
-        df["returns"] = df.groupby("tic")["Close"].pct_change()
+        df["returns"] = df.groupby("tic")["Close"].pct_change().fillna(0.0)
 
         returns_pivot = df.pivot_table(
             index="Date", columns="tic", values="returns", aggfunc="first"
@@ -277,6 +372,11 @@ class DataProcessor:
 
         turb_df = pd.DataFrame(turb_list)
         self.processed_data = df.merge(turb_df, on="Date", how="left")
+        # Any rows whose date failed to align (dtype/timezone edge cases)
+        # would otherwise carry NaN turbulence into the environment.
+        self.processed_data["turbulence"] = self.processed_data["turbulence"].fillna(
+            0.0
+        )
 
         print("Turbulence index calculated (expanding window)")
         return self.processed_data

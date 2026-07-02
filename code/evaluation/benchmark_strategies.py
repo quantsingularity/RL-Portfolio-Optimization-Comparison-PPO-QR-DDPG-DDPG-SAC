@@ -68,7 +68,7 @@ class BenchmarkStrategies:
     returns_data : pd.DataFrame
         Daily returns, one column per asset.
     tickers : list[str]
-        Asset tickers — must match ``returns_data`` columns.
+        Asset tickers: must match ``returns_data`` columns.
     asset_classes : dict, optional
         Mapping of ticker → asset class string.
         Required by ``sixty_forty`` and ``all_weather``.
@@ -228,11 +228,11 @@ class BenchmarkStrategies:
         fi_idx = self._tickers_in_class("fixed_income")
         com_idx = self._tickers_in_class("commodities")
 
-        # Equities — 30 %
+        # Equities: 30 %
         if eq_idx:
             weights[eq_idx] = 0.30 / len(eq_idx)
 
-        # Fixed income — 55 % split between long / intermediate / other
+        # Fixed income: 55 % split between long / intermediate / other
         if fi_idx:
             long_idx = [i for i in fi_idx if "TLT" in self.tickers[i]]
             inter_idx = [i for i in fi_idx if "IEF" in self.tickers[i]]
@@ -247,7 +247,7 @@ class BenchmarkStrategies:
                 used = (0.40 if long_idx else 0) + (0.15 if inter_idx else 0)
                 weights[other_idx] = (0.55 - used) / len(other_idx)
 
-        # Commodities — 15 % (gold gets half, rest split remainder)
+        # Commodities: 15 % (gold gets half, rest split remainder)
         if com_idx:
             gold_idx = [i for i in com_idx if "GC=F" in self.tickers[i]]
             other_com = [i for i in com_idx if i not in gold_idx]
@@ -564,5 +564,5 @@ class BacktestBenchmark:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    print("benchmark_strategies.py loaded — all strategy and backtest classes ready.")
+    print("benchmark_strategies.py loaded: all strategy and backtest classes ready.")
     print(f"Available strategies: {sorted(VALID_STRATEGIES)}")

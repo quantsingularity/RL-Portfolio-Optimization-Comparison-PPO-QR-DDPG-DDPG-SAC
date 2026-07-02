@@ -9,8 +9,14 @@ data:
   test_start: "2023-01-01"
   test_end: "2024-12-31"
 
+  # Offline / demo mode. When true (or when the live Yahoo Finance download
+  # fails, e.g. no network), the DataProcessor generates reproducible
+  # synthetic OHLCV data so the full pipeline stays runnable anywhere.
+  use_synthetic_data: false
+  synthetic_seed: 42
+
   # Investable asset universe (25 assets, 4 classes)
-  # NOTE: ^VIX is NOT listed here — it is not a tradeable instrument.
+  # NOTE: ^VIX is NOT listed here: it is not a tradeable instrument.
   assets:
     equities:
       - AAPL # Apple
@@ -54,7 +60,7 @@ data:
     - boll_ub
     - boll_lb
 
-  # Macroeconomic factors — downloaded for state features / turbulence
+  # Macroeconomic factors: downloaded for state features / turbulence
   # but EXCLUDED from the portfolio weight vector (not tradeable).
   macro_factors:
     - ^VIX # CBOE Volatility Index
@@ -209,7 +215,7 @@ production:
     workers: 4
     reload: false
     log_level: info
-    # Explicit CORS allowlist — replaces the insecure allow_origins="*"
+    # Explicit CORS allowlist: replaces the insecure allow_origins="*"
     # Add your frontend origin(s) here.
     allowed_origins:
       - "http://localhost"
