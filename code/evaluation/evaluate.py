@@ -22,6 +22,7 @@ import yaml
 from scipy.stats import f_oneway
 from stable_baselines3 import DDPG, PPO, SAC
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
+from utils import console as ui
 
 warnings.filterwarnings("ignore")
 
@@ -83,9 +84,7 @@ class EvaluateStrategies:
     # ------------------------------------------------------------------ #
 
     def evaluate_drl_agents(self) -> pd.DataFrame:
-        print("\n" + "=" * 50)
-        print("Evaluating DRL Agents")
-        print("=" * 50)
+        ui.section("A", "Evaluating DRL Agents")
 
         results = []
         n_seeds = self.config["training"]["n_seeds"]
@@ -173,9 +172,7 @@ class EvaluateStrategies:
     # ------------------------------------------------------------------ #
 
     def evaluate_benchmarks(self) -> pd.DataFrame:
-        print("\n" + "=" * 50)
-        print("Evaluating Benchmark Strategies")
-        print("=" * 50)
+        ui.section("B", "Evaluating Benchmark Strategies")
 
         # Build asset_classes mapping from config
         asset_classes: dict = {}
@@ -246,9 +243,7 @@ class EvaluateStrategies:
     def statistical_significance_test(
         self, drl_df: pd.DataFrame, benchmark_df: pd.DataFrame
     ) -> None:
-        print("\n" + "=" * 50)
-        print("Statistical Significance Testing")
-        print("=" * 50)
+        ui.section("C", "Statistical Significance Testing")
 
         all_results = pd.concat([drl_df, benchmark_df], ignore_index=True)
 
@@ -260,11 +255,15 @@ class EvaluateStrategies:
 
         # One-way ANOVA
         f_stat, p_value = f_oneway(*groups)
-        print(f"\nANOVA  F={f_stat:.2f}  p={p_value:.6f}")
-        if p_value < 0.05:
-            print("Significant difference between strategies (p < 0.05)")
-        else:
-            print("No significant difference between strategies (p ≥ 0.05)")
+        ui.kv("ANOVA", f"F={f_stat:.2f}  p={p_value:.6f}")
+        print(
+            "  "
+            + ui.badge(
+                p_value < 0.05,
+                "significant difference between strategies " "(p < 0.05)",
+                "no significant difference between " "strategies (p >= 0.05)",
+            )
+        )
 
         # Tukey's HSD
         print("\nTukey HSD pairwise comparison:")
@@ -289,9 +288,7 @@ class EvaluateStrategies:
     def create_comparison_table(
         self, drl_df: pd.DataFrame, benchmark_df: pd.DataFrame
     ) -> pd.DataFrame:
-        print("\n" + "=" * 50)
-        print("Comparison Table")
-        print("=" * 50)
+        ui.section("D", "Comparison Table")
 
         all_results = pd.concat([drl_df, benchmark_df], ignore_index=True)
 
@@ -337,9 +334,16 @@ class EvaluateStrategies:
         self.statistical_significance_test(drl_df, benchmark_df)
         comparison_df = self.create_comparison_table(drl_df, benchmark_df)
 
-        print("\n" + "=" * 50)
-        print("Evaluation completed successfully!")
-        print("=" * 50)
+        comparison_df.iloc[0] if len(comparison_df) else None
+        ui.summary_panel(
+            "EVALUATION COMPLETE",
+            {
+                "DRL agents evaluated": drl_df["agent"].nunique(),
+                "Benchmarks": benchmark_df["agent"].nunique(),
+                "Comparison rows": len(comparison_df),
+            },
+            footer=f"Tables and figures: {self.results_dir}/",
+        )
         return drl_df, benchmark_df, comparison_df
 
 

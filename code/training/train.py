@@ -22,6 +22,7 @@ import torch
 import yaml
 from stable_baselines3 import DDPG, PPO, SAC
 from stable_baselines3.common.vec_env import DummyVecEnv
+from utils import console as ui
 
 warnings.filterwarnings("ignore")
 
@@ -59,9 +60,7 @@ class TrainDRLAgents:
     # ------------------------------------------------------------------ #
 
     def prepare_data(self) -> None:
-        print("\n" + "=" * 50)
-        print("STEP 1: Data Preparation")
-        print("=" * 50)
+        ui.section(1, "Data Preparation")
 
         processor = DataProcessor(self.config)
         self.train_data, self.test_data = processor.process_all()
@@ -298,14 +297,12 @@ class TrainDRLAgents:
         if n_seeds is None:
             n_seeds = self.config["training"]["n_seeds"]
 
-        print("\n" + "=" * 50)
-        print("STEP 2: Training DRL Agents")
-        print("=" * 50)
+        ui.section(2, "Training DRL Agents")
 
         results: dict = {"ppo": [], "ddpg": [], "sac": [], "qr_ddpg": []}
 
         for seed in range(n_seeds):
-            print(f"\n--- Seed {seed} ---")
+            ui.section(f"2.{seed + 1}", f"Seed {seed}")
 
             ppo_model = self.train_ppo(seed)
             results["ppo"].append(self.evaluate_agent(ppo_model, "sb3")[0])
@@ -319,7 +316,7 @@ class TrainDRLAgents:
             qr_agent = self.train_qr_ddpg(seed)
             results["qr_ddpg"].append(self.evaluate_agent(qr_agent, "custom")[0])
 
-            print(f"Seed {seed} completed")
+            ui.step_done(f"seed {seed} complete: all four agents trained and evaluated")
 
         self._save_results(results)
         return results
@@ -349,10 +346,50 @@ class TrainDRLAgents:
                 "sortino_ratio": ["mean", "std"],
             }
         )
-        print("\n" + "=" * 50)
-        print("TRAINING SUMMARY")
-        print("=" * 50)
-        print(summary)
+        agg = (
+            df.groupby("agent")
+            .agg(
+                annual_return=("annual_return", "mean"),
+                sharpe=("sharpe_ratio", "mean"),
+                sharpe_std=("sharpe_ratio", "std"),
+                max_dd=("max_drawdown", "mean"),
+                sortino=("sortino_ratio", "mean"),
+            )
+            .sort_values("sharpe", ascending=False)
+        )
+        ui.section("S", "Training Summary (mean across seeds)")
+        ui.table(
+            [
+                "Agent",
+                "Annual return",
+                "Sharpe",
+                "Sharpe std",
+                "Max drawdown",
+                "Sortino",
+            ],
+            [
+                [
+                    a.upper(),
+                    f"{r.annual_return:.2%}",
+                    f"{r.sharpe:.3f}",
+                    f"{0.0 if pd.isna(r.sharpe_std) else r.sharpe_std:.3f}",
+                    f"{r.max_dd:.2%}",
+                    f"{r.sortino:.3f}",
+                ]
+                for a, r in agg.iterrows()
+            ],
+            highlight_row=0,
+        )
+        ui.note("highlighted row: best Sharpe ratio across seeds")
+        ui.summary_panel(
+            "TRAINING COMPLETE",
+            {
+                "Agents": "PPO, DDPG, SAC, QR-DDPG",
+                "Seeds": df["seed"].nunique(),
+                "Best Sharpe": f"{agg.index[0].upper()} " f"({agg.iloc[0].sharpe:.3f})",
+            },
+            footer=f"Full results: {out}",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +399,6 @@ def main() -> None:
     trainer = TrainDRLAgents()
     trainer.prepare_data()
     trainer.train_all_agents(n_seeds=2)
-    print("\nTraining completed successfully!")
 
 
 if __name__ == "__main__":

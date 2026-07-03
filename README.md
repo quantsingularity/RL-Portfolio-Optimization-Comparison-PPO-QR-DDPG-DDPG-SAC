@@ -45,7 +45,7 @@ A comparative study of four Deep Reinforcement Learning algorithms PPO, QR-DDPG,
 ### Run script (simplest)
 
 ```bash
-bash scripts/run.sh setup     # install dependencies
+pip install -r code/requirements.txt  # install dependencies
 bash scripts/run.sh test      # run the unit test suite (17 tests)
 bash scripts/run.sh demo      # offline smoke run on synthetic data (~2 min, no network)
 bash scripts/run.sh data      # data pipeline only

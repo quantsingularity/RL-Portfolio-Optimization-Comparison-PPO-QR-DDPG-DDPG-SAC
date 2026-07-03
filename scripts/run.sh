@@ -6,14 +6,13 @@
 #   bash scripts/run.sh <command> [options]
 #
 # Commands:
-#   setup       Install Python dependencies
 #   test        Run the unit test suite
 #   data        Run the data pipeline only (download + indicators + split)
 #   train       Train all agents (PPO, DDPG, SAC, QR-DDPG) per config.yaml
 #   evaluate    Evaluate trained agents vs classical benchmarks
 #   api         Launch the FastAPI production service
 #   demo        Quick offline smoke run on synthetic data (~2 min, no network)
-#   all         setup -> test -> train -> evaluate
+#   all         test -> train -> evaluate
 #
 # Notes:
 #   - Live market data requires network access to Yahoo Finance. If
@@ -32,18 +31,13 @@ export PYTHONPATH="$CODE_DIR:${PYTHONPATH:-}"
 PYTHON="${PYTHON:-python3}"
 
 usage() {
-    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    awk 'NR>1 && /^# ={10,}/{c++; if(c==2) exit} NR>1{sub(/^# ?/,""); print}' "$0"
 }
 
 cmd="${1:-}"
 shift || true
 
 case "$cmd" in
-    setup)
-        echo "[run.sh] Installing dependencies..."
-        "$PYTHON" -m pip install -r "$CODE_DIR/requirements.txt"
-        ;;
-
     test)
         echo "[run.sh] Running unit tests..."
         cd "$CODE_DIR"
@@ -133,7 +127,6 @@ PY
         ;;
 
     all)
-        bash "$0" setup
         bash "$0" test
         bash "$0" train
         bash "$0" evaluate

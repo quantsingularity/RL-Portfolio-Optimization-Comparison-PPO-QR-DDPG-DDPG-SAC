@@ -3,14 +3,34 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+
+try:
+    import seaborn as sns
+
+    _HAS_SEABORN = True
+except Exception:  # missing seaborn, or seaborn too old for this matplotlib
+    sns = None
+    _HAS_SEABORN = False
+
+
+def _require_seaborn():
+    """Raise a clear error when a seaborn-based plot is requested."""
+    if not _HAS_SEABORN:
+        raise ImportError(
+            "seaborn (>=0.13) is required for this plot but could not be "
+            "imported. Older seaborn versions are incompatible with "
+            "matplotlib >= 3.9 (register_cmap removal). "
+            "Fix with: pip install -U 'seaborn>=0.13'"
+        )
+
 
 # --- Configuration and Output Directory ---
 np.random.seed(42)  # reproducible figures
 FIGURES_DIR = Path("results/figures")
 FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-sns.set_theme(style="whitegrid")
+if _HAS_SEABORN:
+    sns.set_theme(style="whitegrid")
 plt.rcParams.update(
     {
         "font.size": 12,
@@ -199,6 +219,7 @@ def plot_shap_importance(
     df, filename=str(FIGURES_DIR / "Figure3_SHAP_Feature_Importance.png")
 ):
     """Plots the mean absolute SHAP values for feature importance."""
+    _require_seaborn()
     plt.figure(figsize=(10, 7))
     sns.barplot(x="Mean Absolute SHAP Value", y="Feature", data=df, palette="viridis")
     plt.title("Figure 3: Mean Absolute SHAP Feature Importance for PPO Policy", pad=20)
@@ -321,6 +342,7 @@ def plot_tukey_hsd(
     df, filename=str(FIGURES_DIR / "Figure5_Tukey_HSD_Statistical_Significance.png")
 ):
     """Plots the mean daily returns with error bars and significance groups."""
+    _require_seaborn()
     plt.figure(figsize=(10, 6))
 
     # Plot mean daily returns with error bars
@@ -388,6 +410,7 @@ def generate_ablation_data():
 
 def plot_ablation_study(df, filename=str(FIGURES_DIR / "Figure6_Ablation_Study.png")):
     """Plots the Ablation Study results (Sharpe Ratio vs. Max Drawdown)."""
+    _require_seaborn()
     plt.figure(figsize=(10, 6))
 
     # Scatter plot of Sharpe Ratio vs. Max Drawdown
@@ -457,6 +480,7 @@ def plot_daily_returns_distribution(
     df, filename=str(FIGURES_DIR / "Figure7_Daily_Returns_Distribution.png")
 ):
     """Plots the Kernel Density Estimate (KDE) of daily returns."""
+    _require_seaborn()
     plt.figure(figsize=(10, 6))
 
     # Plot KDE for the three strategies

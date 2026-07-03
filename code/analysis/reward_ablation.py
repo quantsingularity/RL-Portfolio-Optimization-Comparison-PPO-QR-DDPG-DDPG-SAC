@@ -15,7 +15,27 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+
+try:
+    import seaborn as sns
+
+    _HAS_SEABORN = True
+except Exception:  # missing seaborn, or seaborn too old for this matplotlib
+    sns = None
+    _HAS_SEABORN = False
+
+
+def _require_seaborn():
+    """Raise a clear error when a seaborn-based plot is requested."""
+    if not _HAS_SEABORN:
+        raise ImportError(
+            "seaborn (>=0.13) is required for this plot but could not be "
+            "imported. Older seaborn versions are incompatible with "
+            "matplotlib >= 3.9 (register_cmap removal). "
+            "Fix with: pip install -U 'seaborn>=0.13'"
+        )
+
+
 import torch
 import yaml
 
@@ -208,6 +228,7 @@ class RewardAblationStudy:
         dd = agg[("max_drawdown", "mean")].values
 
         def _norm(x):
+            _require_seaborn()
             rng = x.max() - x.min()
             return (x - x.min()) / rng if rng > 0 else np.zeros_like(x)
 
